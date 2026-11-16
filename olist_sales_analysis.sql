@@ -1,31 +1,3 @@
-/*
- PROJET : Analyse des ventes e-commerce Olist
- Auteure : Abir Montigny
- SGBD : PostgreSQL 17
- Source : https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce
-
- EXECUTION
- 1. Creer la base olist_analytics dans pgAdmin et s'y connecter.
- 2. Executer la section 1 pour creer les tables sources.
- 3. Importer les CSV correspondants via Import/Export Data :
-    CSV, UTF8, separateur virgule, Header = Yes. Une seule importation par table.
- 4. Executer les controles de la section 2 et examiner les anomalies.
- 5. Creer les vues (section 3), puis executer les analyses (section 4).
- Les CSV ne sont pas inclus dans ce depot. Aucun mot de passe n'est necessaire ici.
-
- REGLES METIER
- - Commandes livrees uniquement ; date d'analyse = date d'achat.
- - Ventes = somme du prix des articles, hors livraison, en BRL.
- - Il ne s'agit pas du chiffre d'affaires propre de la plateforme Olist.
- - Les vues conservent toutes les dates disponibles.
- - Analyses comparatives : janvier 2017 a juillet 2018 inclus (19 mois).
- - Categorie absente : 'Non renseignee' ; traduction absente : nom portugais.
- - Grain des ventes : une ligne par couple (order_id, order_item_id).
-
- Le script ne supprime et ne vide aucune table. IF NOT EXISTS ne verifie pas
- la structure d'une table preexistante : utiliser les colonnes definies ci-dessous.
-*/
-
 -- 1. STRUCTURE ET IMPORTATION DES SOURCES
 CREATE SCHEMA IF NOT EXISTS raw;
 CREATE SCHEMA IF NOT EXISTS analytics;
@@ -97,8 +69,6 @@ CREATE TABLE IF NOT EXISTS raw.order_payments (
     payment_installments INTEGER,
     payment_value NUMERIC(12, 2)
 );
-
--- Importer les sept CSV avant de poursuivre.
 
 -- 2. CONTROLES QUALITE
 
@@ -186,7 +156,7 @@ SELECT COUNT(*) AS nombre_produits,
        ) AS produits_avec_categorie_sans_traduction
 FROM raw.products p;
 
--- Cette requete doit retourner zero ligne avant la jointure des traductions.
+----------------------------------------------------------------
 SELECT product_category_name, COUNT(*) AS nombre_lignes
 FROM raw.category_translation
 GROUP BY product_category_name
@@ -237,9 +207,7 @@ SELECT seller_id, seller_zip_code_prefix AS code_postal_prefixe,
        seller_city AS ville, seller_state AS etat
 FROM raw.sellers;
 
--- Controle de la vue sur toutes les dates :
--- 110197 articles distincts, 96478 commandes,
--- ventes = 13221498.11 BRL ; frais = 2198275.64 BRL.
+--------------------------------------------------------------------------
 SELECT COUNT(*) AS nombre_articles,
        COUNT(DISTINCT (order_id, order_item_id)) AS articles_distincts,
        COUNT(DISTINCT order_id) AS commandes_avec_articles,
@@ -247,9 +215,6 @@ SELECT COUNT(*) AS nombre_articles,
        SUM(frais_livraison) AS frais_livraison_brl
 FROM analytics.fact_ventes;
 
--- Ne pas joindre directement les paiements aux articles : plusieurs lignes
--- de chaque cote par commande peuvent multiplier les montants.
--- Les paiements ne sont pas necessaires au perimetre du dashboard actuel.
 
 -- 4. ANALYSES DE REFERENCE : JANVIER 2017 A JUILLET 2018
 
@@ -266,8 +231,6 @@ GROUP BY 1
 ORDER BY 1;
 
 -- 4.2. Comparaisons mensuelles.
--- Les 19 mois sont presents : LAG correspond donc bien au mois precedent.
--- Janvier 2017 n'a pas de comparaison dans le perimetre SQL retenu.
 WITH ventes_mensuelles AS (
     SELECT DATE_TRUNC('month', date_achat)::DATE AS mois,
            SUM(prix_article) AS ventes_brl
@@ -287,8 +250,6 @@ FROM comparaison
 ORDER BY mois;
 
 -- 4.3. Ventes et contribution par categorie.
--- Une commande peut appartenir a plusieurs categories : ne pas additionner
--- les nombres de commandes des categories pour obtenir le total global.
 WITH ventes_categories AS (
     SELECT categorie, SUM(prix_article) AS ventes_brl,
            COUNT(DISTINCT order_id) AS nombre_commandes,
@@ -303,12 +264,6 @@ FROM ventes_categories
 ORDER BY ventes_brl DESC;
 
 -- 4.4. Moyenne mensuelle utilisee dans la carte Power BI.
--- Moyenne sur les 19 mois fixes, independante du mois selectionne.
 SELECT ROUND(SUM(prix_article) / 19, 2) AS moyenne_mensuelle_brl
 FROM analytics.fact_ventes
 WHERE date_achat >= DATE '2017-01-01' AND date_achat < DATE '2018-08-01';
-
--- POWER BI : importer les quatre vues du schema analytics.
--- Retirer categorie, ville_client et etat_client de fact_ventes dans Power Query
--- (ces attributs restent accessibles via les dimensions).
--- Ajouter le calendrier et les mesures DAX dans Power BI.
