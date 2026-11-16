@@ -79,7 +79,3 @@ PostgreSQL 17 · pgAdmin · SQL · Power Query · Power BI · DAX
 ## Portfolio
 
 [Consulter mon portfolio](https://abirmontigny.carrd.co/)
-
-## Auteure
-
-Abir Montigny
